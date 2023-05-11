@@ -23,7 +23,7 @@ jobs:
         run: |
           git branch -D gh-pages || true
           git checkout -b gh-pages
-          git push origin main
+          git push -f origin main
           git checkout main
 
       - name: Run chart-releaser
