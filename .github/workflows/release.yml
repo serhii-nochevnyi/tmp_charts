@@ -1,0 +1,54 @@
+name: Release_Charts
+env: 
+  CHARTS_DIR: "charts"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          
+      - name: Create gh-pages branch
+        run: |
+          git branch -D gh-pages || true
+          git checkout -b gh-pages
+          git push origin main
+          git checkout main
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.5.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        with:
+          charts_dir: "${{ env.CHARTS_DIR }}"
+      
+      - name: Update charts
+        run: |
+              set -euo pipefail
+              if [[ -d .cr-release-packages ]]; then
+                cp -r .cr-release-packages/* ${{ env.CHARTS_DIR }}/
+                pushd ${{ env.CHARTS_DIR }} > /dev/null
+                helm repo index . --merge index.yaml
+                git add *
+                git commit -m "Add new charts, update index.yaml" 
+                git push origin main
+                popd > /dev/null
+              else
+                echo "Nothing to do. No chart changes detected."
+                exit 0
+              fi
+              
+              git push origin :gh-pages || true
+
+

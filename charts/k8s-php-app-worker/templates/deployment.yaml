@@ -1,0 +1,177 @@
+{{- if .Values.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata: {{ include "k8s-php-app-worker.metadata" . | nindent 2 }}
+{{- if .Values.spot.enabled }}{{ nindent 4 "dedicated-for: spot" }}{{ end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels: {{ include "k8s-php-app-worker.labels" . | nindent 6 }}
+  strategy:
+    rollingUpdate:
+      {{- if gt (.Values.replicas | int) 1 }}
+      maxSurge: {{ .Values.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
+      {{- else }}
+      maxSurge: 1
+      maxUnavailable: 0
+      {{- end }}
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.global.serviceMesh.enabled }}
+        sidecar.istio.io/inject: "true"
+        {{- if .Values.envoy.resources.limits.mem }}
+        sidecar.istio.io/proxyMemoryLimit: {{ .Values.envoy.resources.limits.mem }}
+        {{- end }}
+        {{- if .Values.envoy.resources.requests.mem }}
+        sidecar.istio.io/proxyMemory: {{ .Values.envoy.resources.requests.mem }}
+        {{- end }}
+        {{- if .Values.envoy.resources.limits.cpu }}
+        sidecar.istio.io/proxyCPULimit: {{ .Values.envoy.resources.limits.cpu }}
+        {{- end }}
+        {{- if .Values.envoy.resources.requests.cpu }}
+        sidecar.istio.io/proxyCPU: {{ .Values.envoy.resources.requests.cpu }}
+        {{- end }}
+        {{- end }}
+      labels: {{ include "k8s-php-app-worker.labels" . | nindent 8 }}
+      {{- if .Values.spot.enabled }}{{ nindent 8 "dedicated-for: spot" }}{{ end }}
+      {{- include "k8s-php-app-worker.extra_labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+      affinity:
+        {{- if .Values.podantiaffinity.enabled }}
+        podAntiAffinity:
+          {{- if eq .Values.podantiaffinity.type "preffered" }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels: {{ include "k8s-php-app-worker.labels" . | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+          {{- end }}
+          {{- if eq .Values.podantiaffinity.type "required" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels: {{ include "k8s-php-app-worker.labels" . | nindent 16 }}
+            topologyKey: "kubernetes.io/hostname"
+          {{- end }}
+        {{- end }}
+        {{- if .Values.spot.enabled }}
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 90
+            preference:
+              matchExpressions:
+              - key: dedicated-for
+                operator: In
+                values:
+                - spot
+        {{- end }}
+      tolerations:
+      {{- if .Values.spot.enabled }}
+      - key: dedicated-for
+        operator: Equal
+        value: spot
+      {{- end }}
+      {{- if .Values.init_container.enabled }}
+      initContainers:
+      - name: app-init
+        image: {{ .Values.init_container.image }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        env: {{ include "k8s-php-app-worker.env_vars" . | nindent 8 }}
+        resources:
+          limits:
+            {{- if .Values.init_container.resources.limits.cpu }}
+            cpu: {{ .Values.init_container.resources.limits.cpu }}
+            {{- end }}
+            {{- if .Values.init_container.resources.limits.mem }}
+            memory: {{ .Values.init_container.resources.limits.mem }}
+            {{- end }}
+          requests:
+            cpu: {{ .Values.init_container.resources.requests.cpu }}
+            memory: {{ .Values.init_container.resources.requests.mem }}
+        {{- if .Values.init_container.volume.enabled }}
+        volumeMounts:
+        - mountPath: /mnt
+          name: shared
+        {{- end }}
+      {{- end }}
+      containers:
+      - name: app
+        env:
+{{ include "k8s-php-app-worker.downward_API" . | indent 8 }}
+{{ include "k8s-php-app-worker.env_vars" . | indent 8 }}
+        - name: SERVICE_ROLE
+          value: {{ include "k8s-php-app-worker.role" . }}
+        - name: SERVICE_NAME
+          value: {{ include "k8s-php-app-worker.sevice_name" . }}-{{ include "k8s-php-app-worker.role" . }}
+        envFrom:
+{{ include "k8s-php-app-worker.env_config_maps" . | indent 8 }}
+{{ include "k8s-php-app-worker.env_secrets" . | indent 8 }}
+        image: {{ include "k8s-php-app-worker.image_name" . }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/bash
+            - -c
+            - '! (supervisorctl status all | grep -qs FATAL)'
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+        resources:
+          limits:
+            {{- if .Values.resources.limits.cpu }}
+            cpu: {{ .Values.resources.limits.cpu }}
+            {{- end }}
+            {{- if .Values.resources.limits.memory }}
+            memory: {{ .Values.resources.limits.memory }}
+            {{- end }}
+            {{- if .Values.resources.limits.ephemeralStorage }}
+            ephemeral-storage: {{ .Values.resources.limits.ephemeralStorage }}
+            {{- end }}
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+            ephemeral-storage: {{ .Values.resources.requests.ephemeralStorage }}
+        volumeMounts:
+        - mountPath: /app/storage/logs/json
+          name: logs-app
+          subPathExpr: $(NAMESPACE_NAME)_$(POD_NAME)
+        - mountPath: /var/log/php
+          name: logs-php
+          subPathExpr: $(NAMESPACE_NAME)_$(POD_NAME)
+        {{- if and .Values.init_container.enabled .Values.init_container.volume.enabled }}
+        - mountPath: {{ .Values.init_container.volume.path }}
+          name: shared
+        {{- end }}
+        {{- if .Values.nodeLocalDns }}
+        lifecycle: {{ include "k8s-php-app-worker.lifecycle" . | nindent 10 }}
+        {{- end }}
+      dnsConfig: {{ include "k8s-php-app-worker.dnsConfig" . | nindent 8 }}
+      imagePullSecrets:
+      - name: docker-auth
+      restartPolicy: Always
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      volumes:
+      - hostPath:
+          path: {{ .Values.global.logs.app }}
+          type: ""
+        name: logs-app
+      - hostPath:
+          path: {{ .Values.global.logs.php }}
+          type: ""
+        name: logs-php
+      {{- if and .Values.init_container.enabled .Values.init_container.volume.enabled }}
+      - name: shared
+        emptyDir: {}
+      {{- end }}
+{{- end -}}

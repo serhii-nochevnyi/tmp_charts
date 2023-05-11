@@ -1,0 +1,63 @@
+{{- if .Values.global.postsync.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "k8s-php-app-canary.app_name" . }}-postsync
+  labels:
+    app: {{ include "k8s-php-app-canary.app_name" . }}
+    role: console
+    type: postsync
+    {{- include "k8s-php-app-canary.extra_labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  activeDeadlineSeconds: {{.Values.global.postsync.ttl }}
+  backoffLimit: 2
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: {{ include "k8s-php-app-canary.app_name" . }}
+        role: console
+        type: postsync
+        {{- include "k8s-php-app-canary.extra_labels" . | nindent 8 }}
+    spec:
+      containers:
+      - name: curl
+        command:
+        - /bin/sh
+        - -c
+        - |
+          curl \
+          -i \
+          --location \
+          --request POST \
+          "https://jenkins-server-qa.infrateam.xyz/job/Integrations_tests_webhook/buildWithParameters?environment=${QA_ENV}&project=${QA_PROJECT}&reason=${QA_TAG}&token=ioSomeToken&delay=0sec" \
+          --header \
+          "Authorization: Basic ${QA_TOKEN}"
+        env:
+        - name: QA_ENV
+          value: {{.Values.global.environment }}
+        - name: QA_PROJECT
+          value: {{.Values.global.app_name }}
+        - name: QA_TAG
+          value: {{.Values.global.image.tag }}
+        envFrom:
+{{ include "k8s-php-app-canary.env_config_maps" . | indent 8 }}
+{{ include "k8s-php-app-canary.env_secrets" . | indent 8 }}
+        image: curlimages/curl:7.79.1
+        resources:
+          limits:
+            cpu: 20m
+            memory: 32Mi
+          requests:
+            cpu: 20m
+            memory: 32Mi
+      dnsConfig: {{ include "k8s-php-app-canary.dnsConfig" . | nindent 8 }}
+      imagePullSecrets:
+      - name: docker-auth
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 30
+{{- end -}}

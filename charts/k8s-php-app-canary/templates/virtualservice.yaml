@@ -1,0 +1,29 @@
+{{- if and .Values.enabled .Values.global.serviceMesh.enabled -}}
+kind: VirtualService
+apiVersion: networking.istio.io/v1beta1
+metadata: {{ include "k8s-php-app-canary.metadata" . | nindent 2 }}
+spec:
+  gateways:
+  {{- if .Values.global.serviceMesh.mesh }}
+  - mesh
+  {{- end }}
+  {{- range .Values.global.serviceMesh.gateways }}
+  - {{ . }}
+  {{- end }}
+  hosts:
+  - {{ .Values.global.app_name }}.{{ .Values.global.namespace }}.svc.cluster.local
+  {{- range .Values.global.serviceMesh.hosts }}
+  - {{ . }}
+  {{- end }}
+  http:
+  - name: primary
+    route:
+    - destination:
+        host: {{ .Values.global.app_name }}.{{ .Values.global.namespace }}.svc.cluster.local
+        subset: stable
+      weight: 100
+    - destination:
+        host: {{ .Values.global.app_name }}.{{ .Values.global.namespace }}.svc.cluster.local
+        subset: canary
+      weight: 0
+{{- end -}}

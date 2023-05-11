@@ -1,0 +1,10 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata: {{ include "k8s-php-app-canary.metadata" . | nindent 2 }}
+spec:
+  host: {{ .Values.global.app_name }}.{{ .Values.global.namespace }}.svc.cluster.local
+  subsets:
+  - name: canary
+    labels: {{ include "k8s-php-app-canary.labels" . | nindent 6 }}
+  - name: stable
+    labels: {{ include "k8s-php-app-canary.labels" . | nindent 6 }}

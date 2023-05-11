@@ -1,0 +1,120 @@
+{{- if $.Values.enabled -}}
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+{{ include "k8s-php-app-cronjob.metadata" . | indent 2}}
+spec:
+  schedule: {{ .Values.schedule }}
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  {{- if .Values.historyLimit.successful }}
+  successfulJobsHistoryLimit: {{ .Values.historyLimit.successful  }}
+  {{- end }}
+  {{- if .Values.historyLimit.failed }}
+  failedJobsHistoryLimit: {{ .Values.historyLimit.failed  }}
+  {{- end }}
+  startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds  }}
+  jobTemplate:
+    spec:
+      {{- if .Values.parallelism }}
+      parallelism: {{ .Values.parallelism }}
+      {{- end }}
+      template:
+        metadata:
+          labels: {{ include "k8s-php-app-cronjob.labels" . | nindent 12 }}
+        spec:
+          {{- if .Values.global.serviceAccountName }}
+          serviceAccountName: {{ .Values.global.serviceAccountName }}
+          {{- end }}
+          affinity:
+          {{- if .Values.podantiaffinity.enabled }}
+            podAntiAffinity:
+            {{- if eq .Values.podantiaffinity.type "preffered" }}
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchLabels: {{ include "k8s-php-app-cronjob.labels" . | nindent 22 }}
+                  topologyKey: kubernetes.io/hostname
+            {{- end }}
+            {{- if eq .Values.podantiaffinity.type "required" }}
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels: {{ include "k8s-php-app-cronjob.labels" . | indent 20 }}
+                topologyKey: "kubernetes.io/hostname"
+            {{- end }}
+          {{- end }}
+          {{- if .Values.spot.enabled }}
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 90
+                preference:
+                  matchExpressions:
+                  - key: dedicated-for
+                    operator: In
+                    values:
+                    - spot
+          {{- end }}
+          {{- if .Values.spot.enabled }}
+          tolerations:
+          - key: dedicated-for
+            operator: Equal
+            value: spot
+          {{- end }}
+          {{- if .Values.init_container.enabled }}
+          initContainers:
+          - name: {{ include "k8s-php-app-cronjob.sevice_name" . }}-init
+            image: {{ .Values.init_container.image }}
+            imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+            env:
+{{ include "k8s-php-app-cronjob.env_vars" . | indent 12 }}
+            resources:
+              limits:
+                {{- if .Values.init_container.resources.limits.cpu }}
+                cpu: {{ .Values.init_container.resources.limits.cpu }}
+                {{- end }}
+                {{- if .Values.init_container.resources.limits.mem }}
+                memory: {{ .Values.init_container.resources.limits.mem }}
+                {{- end }}
+              requests:
+                cpu: {{ .Values.init_container.resources.requests.cpu }}
+                memory: {{ .Values.init_container.resources.requests.mem }}
+          {{- end }}
+          containers:
+          - name: {{ include "k8s-php-app-cronjob.sevice_name" . }}
+            image: {{ include "k8s-php-app-cronjob.image_name" . }}
+            imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+            env:
+            - name: SERVICE_ROLE
+              value: {{ include "k8s-php-app-cronjob.role" . }}
+            - name: SERVICE_NAME
+              value: {{ include "k8s-php-app-cronjob.sevice_name" . }}
+{{ include "k8s-php-app-cronjob.env_vars" . | indent 12 }}
+            envFrom:
+{{ include "k8s-php-app-cronjob.env_config_maps" . | indent 12 }}
+{{ include "k8s-php-app-cronjob.env_secrets" . | indent 12 }}
+            {{- if .Values.command }}
+            command:
+            {{- range .Values.command }}
+            - {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            resources:
+              limits:
+                {{- if .Values.resources.limits.cpu }}
+                cpu: {{ .Values.resources.limits.cpu }}
+                {{- end }}
+                {{- if .Values.resources.limits.memory }}
+                memory: {{ .Values.resources.limits.memory }}
+                {{- end }}
+                {{- if .Values.resources.limits.ephemeralStorage }}
+                ephemeral-storage: {{ .Values.resources.limits.ephemeralStorage }}
+                {{- end }}
+              requests:
+                cpu: {{ .Values.resources.requests.cpu }}
+                memory: {{ .Values.resources.requests.memory }}
+                ephemeral-storage: {{ .Values.resources.requests.ephemeralStorage }}
+          imagePullSecrets:
+          - name: docker-auth
+          restartPolicy: {{ .Values.restartPolicy }}
+          terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+{{- end -}}

@@ -1,0 +1,188 @@
+### GLOBAL ###
+global:
+  # (Required) The name of application.
+  app_name:
+
+  # (Required) K8S namespace where application is running.
+  namespace:
+
+  # (Required) An environment name, e.g. stage, prod, hf, rc, etc.
+  environment:
+
+  # (Optional) Application's family name.
+  # In case of empty value `consul_service_name` is generated as `$environment-$app_name`
+  family_name:
+
+  # Canary parameters
+  canary:
+    # (Optional) Enable/disable canary strategy.
+    # if `false` classical RollingUpdate will be in place.
+    # if `true` `global.canary.image` has higher priority than `global.image`
+    enabled: false
+
+    image:
+      # (Required) Docker image repo name.
+      repository:
+      # (Required) Docker image tag
+      tag:
+
+  image:
+    # (Required) Docker image repo name.
+    repository:
+
+    # (Optional) Image pull policy in Kubernetes.
+    # Possible values are `IfNotPresent`, `Always`, `Never`,  or  the empty string
+    # (in this case Always will be used if :latest tag is specified, or IfNotPresent otherwise).
+    pullPolicy: IfNotPresent
+
+    # (Required) Docker image tag
+    tag:
+
+  # (Optional) Service Account to associate with pods
+  serviceAccountName:
+
+  # (Optional) Map of paths where app, nginx and php logs to be mounted outside containers.
+  # These kyes  are REQUIRED for the Chart and set as default:
+  logs:
+    app: "/var/log/k8s/apps/app_json"
+    php: "/var/log/k8s/apps/php"
+
+  # (Required) An extra labels for metadata for all k8s objects
+  labels:
+    infra: "undefined"
+    team: "undefined"
+
+  # (Optional) A global key/value map of the container environment variables.
+  env_vars: []
+
+### COMMON ###
+
+# (Optional) A key/value map of the container environment variables.
+env_vars: []
+
+# (Optional) A list of application config maps having environments variables.
+# Chart uses both default and `env_config_maps` config maps.
+# Defaults config maps are `family.
+env_config_maps: []
+
+# (Optional)  A list of application secret maps having environments variables.
+# Chart uses both default and `env_secrets` secrets.
+# Default secret map is `app.$app_name`
+env_secrets: []
+
+# (Optional) Disable default config maps and secrets maps,
+# and set a list of own maps in variables `$env_config_maps` and `$env_secrets`.
+# Defaults config maps are `family.$family_name` and `app.$app_name`.
+# Default secret map is `app.$app_name`.
+disable_default_env_from: false
+
+# Example:
+# env_vars:
+# - name: far
+#   value: bar
+# - name: zoo
+#   value: boo
+
+# env_config_maps:
+# - my.family.api
+# - my.app.slates
+
+# env_secrets:
+# - my.app.slates
+
+# (Optional)
+enabled: true
+
+# (Optional) Specifies the maximum desired number of pods the job should run at any given time.
+parallelism: 1
+
+# (Required)
+# This value is passed to container environment variable SERVICE_ROLE
+role: cron
+
+# (Required) This value is passed to container for name
+kind:
+
+# The schedule in Cron format, see https://en.wikipedia.org/wiki/Cron.
+schedule: "* * * * *"
+
+# (Required) command (string)
+command:
+
+#Specifies how to treat concurrent executions of a Job.
+#Valid values are:
+#  - "Allow" (default): allows CronJobs to run concurrently;
+#  - "Forbid": forbids concurrent runs, skipping next run if previous run hasn't finished yet;
+#  - "Replace": cancels currently running job and replaces it with a new one
+concurrencyPolicy: Allow
+
+# (Optional) deadline in seconds for starting the job if it misses scheduled time for any reason
+startingDeadlineSeconds: 30
+
+#The number of finished jobs to retain.
+historyLimit:
+# successful: value must be non-negative integer. Defaults to 3.
+  successful: 3
+# failed: value must be non-negative integer. Defaults to 1.
+  failed: 1
+
+podantiaffinity:
+  # (Optional) Enable PodAntiAffinity.
+  enabled: true
+
+  # (Optional) PodAntiAffinity type. Possible values: `"preffered"` and `"required"`.
+  # https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+  type: preffered
+
+resources:
+  requests:
+    # (Optional) CPU request to run app on k8s.
+    cpu: 100m
+
+    # (Optional) MEM request to run app on k8s.
+    memory: 128Mi
+
+    # (Optional) Ephemeral storage request to run app on k8s.
+    ephemeralStorage: 1Gi
+
+  limits:
+    # (Optional) CPU limit of app.
+    # In case of absence of this param, cpu limits will not be set.
+    cpu:
+
+    # (Optional) MEM limit of app.
+    # In case of absence of this param, mem limits will not be set.
+    memory:
+
+    # (Optional) Ephemeral storage limits to run app on k8s.
+    ephemeralStorage: 1Gi
+
+# (Optional) Duration in seconds the pod needs to terminate gracefully
+terminationGracePeriodSeconds: 30
+
+# (Optional) Valid values "OnFailure", "Never"
+restartPolicy: OnFailure
+
+# (Optional) Allow to use spot instances
+spot:
+  enabled: true
+
+### InitContainers
+init_container:
+  # (Optional) Enable init container.
+  enabled: false
+  # (Optional) Init container image.
+  image:
+
+  # (Optional) init container resources.
+  resources:
+    requests:
+      # (Optional) Specifies the requested CPU setting for the initcontainer.
+      cpu: 40m
+      # (Optional) Specifies the requested memory setting for the initcontainer.
+      mem: 32Mi
+    limits:
+      # (Optional) Specifies the CPU limit for the initcontainer.
+      cpu:
+      # (Optional) Specifies the memory limit for the initcontainer.
+      mem:

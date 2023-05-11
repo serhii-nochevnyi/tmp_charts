@@ -1,0 +1,254 @@
+{{- if .Values.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-php-app-canary.app_name" . }}-rollout-ref
+  labels: {{ include "k8s-php-app-canary.labels" . | nindent 4 }}
+  {{- if .Values.spot.enabled }}{{ nindent 4 "dedicated-for: spot" }}{{ end }}
+  {{- include "k8s-php-app-canary.extra_labels" . | nindent 4 }}
+spec:
+  replicas: 0
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels: {{ include "k8s-php-app-canary.labels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if .Values.global.serviceMesh.enabled }}
+        sidecar.istio.io/inject: "true"
+        sidecar.istio.io/statsInclusionSuffixes: {{ .Values.envoy.metricsSuffixes}}
+        {{- if .Values.envoy.resources.limits.mem }}
+        sidecar.istio.io/proxyMemoryLimit: {{ .Values.envoy.resources.limits.mem }}
+        {{- end }}
+        {{- if .Values.envoy.resources.requests.mem }}
+        sidecar.istio.io/proxyMemory: {{ .Values.envoy.resources.requests.mem }}
+        {{- end }}
+        {{- if .Values.envoy.resources.limits.cpu }}
+        sidecar.istio.io/proxyCPULimit: {{ .Values.envoy.resources.limits.cpu }}
+        {{- end }}
+        {{- if .Values.envoy.resources.requests.cpu }}
+        sidecar.istio.io/proxyCPU: {{ .Values.envoy.resources.requests.cpu }}
+        {{- end }}
+        {{- end }}
+      labels: {{ include "k8s-php-app-canary.labels" . | nindent 8 }}
+      {{- if .Values.spot.enabled }}{{ nindent 8 "dedicated-for: spot" }}{{ end }}
+      {{- include "k8s-php-app-canary.extra_labels" . | nindent 8 }}
+    spec:
+      {{- if .Values.global.serviceAccountName }}
+      serviceAccountName: {{ .Values.global.serviceAccountName }}
+      {{- end }}
+      affinity:
+        {{- if .Values.podantiaffinity.enabled }}
+        podAntiAffinity:
+          {{- if eq .Values.podantiaffinity.type "preffered" }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels: {{ include "k8s-php-app-canary.labels" . | nindent 18 }}
+              topologyKey: kubernetes.io/hostname
+          {{- end }}
+          {{- if eq .Values.podantiaffinity.type "required" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels: {{ include "k8s-php-app-canary.labels" . | nindent 16 }}
+            topologyKey: "kubernetes.io/hostname"
+          {{- end }}
+        {{- end }}
+        {{- if .Values.spot.enabled }}
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 90
+            preference:
+              matchExpressions:
+              - key: dedicated-for
+                operator: In
+                values:
+                - spot
+        {{- end }}
+      tolerations:
+      {{- if .Values.spot.enabled }}
+      - key: dedicated-for
+        operator: Equal
+        value: spot
+      {{- end }}
+      {{- if .Values.init_container.enabled }}
+      initContainers:
+      - name: app-init
+        image: {{ .Values.init_container.image }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        env: {{ include "k8s-php-app-canary.env_vars" . | nindent 8 }}
+        resources:
+          limits:
+            {{- if .Values.init_container.resources.limits.cpu }}
+            cpu: {{ .Values.init_container.resources.limits.cpu }}
+            {{- end }}
+            {{- if .Values.init_container.resources.limits.mem }}
+            memory: {{ .Values.init_container.resources.limits.mem }}
+            {{- end }}
+          requests:
+            cpu: {{ .Values.init_container.resources.requests.cpu }}
+            memory: {{ .Values.init_container.resources.requests.mem }}
+        {{- if .Values.init_container.volume.enabled }}
+        volumeMounts:
+        - mountPath: /mnt
+          name: shared
+        {{- end }}
+      {{- end }}
+      containers:
+      {{- if .Values.exporter.enabled }}
+      - name: php-fpm-exporter
+        image: {{ .Values.exporter.image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ .Values.exporter.port }}
+          name: php-fpm-metrics
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /sock
+          name: sock
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.exporter.path }}
+            port: {{ .Values.exporter.port }}
+          failureThreshold: {{ .Values.exporter.readinessProbe.failureThreshold }}
+          initialDelaySeconds: {{ .Values.exporter.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.exporter.readinessProbe.periodSeconds }}
+          successThreshold: {{ .Values.exporter.readinessProbe.successThreshold }}
+          timeoutSeconds: {{ .Values.exporter.readinessProbe.timeoutSeconds }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.exporter.path }}
+            port: {{ .Values.exporter.port }}
+          failureThreshold: {{ .Values.exporter.livenessProbe.failureThreshold }}
+          initialDelaySeconds: {{ .Values.exporter.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.exporter.livenessProbe.periodSeconds }}
+          successThreshold: {{ .Values.exporter.livenessProbe.successThreshold }}
+          timeoutSeconds: {{ .Values.exporter.livenessProbe.timeoutSeconds }}
+        env:
+          - name: "PHP_FPM_SCRAPE_URI"
+            value: "unix:///sock/php{{ $.Values.exporter.phpVersion }}-fpm.sock/fpmstatus"
+          - name: "PHP_FPM_WEB_TELEMETRY_PATH"
+            value: {{ .Values.exporter.path }}
+          - name: "PHP_FPM_FIX_PROCESS_COUNT"
+            value: "{{ $.Values.exporter.fixProcessCount }}"
+          - name: "PHP_FPM_LOG_LEVEL"
+            value: {{ .Values.exporter.logLevel }}
+        resources:
+          limits:
+            {{- if .Values.exporter.resources.limits.cpu }}
+            cpu: {{ .Values.exporter.resources.limits.cpu }}
+            {{- end }}
+            {{- if .Values.exporter.resources.limits.mem }}
+            memory: {{ .Values.exporter.resources.limits.mem }}
+            {{- end }}
+          requests:
+            cpu: {{ .Values.exporter.resources.requests.cpu }}
+            memory: {{ .Values.exporter.resources.requests.mem }}
+      {{- end }}
+      - name: app
+        env:
+{{ include "k8s-php-app-canary.downward_API" . | indent 8 }}
+{{ include "k8s-php-app-canary.env_vars" . | indent 8 }}
+        - name: SERVICE_ROLE
+          value: web
+        - name: SERVICE_NAME
+          value: {{ include "k8s-php-app-canary.sevice_name" . }}
+        envFrom:
+{{ include "k8s-php-app-canary.env_config_maps" . | indent 8 }}
+{{ include "k8s-php-app-canary.env_secrets" . | indent 8 }}
+        image: {{ include "k8s-php-app-canary.image_name" . }}
+        imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+        ports:
+        - name: http-main
+          containerPort: {{ .Values.appPort }}
+          protocol: TCP
+        {{- if .Values.roadrunner.metrics.enabled }}
+        - name: metrics-rr
+          containerPort: {{ .Values.roadrunner.metrics.port }}
+          protocol: TCP
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: {{ .Values.statusPath }}
+            port: {{ .Values.appPort }}
+            scheme: HTTP
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.statusPath }}
+            port: {{ .Values.appPort }}
+            scheme: HTTP
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+        resources:
+          limits:
+            {{- if .Values.resources.limits.cpu }}
+            cpu: {{ .Values.resources.limits.cpu }}
+            {{- end }}
+            {{- if .Values.resources.limits.memory }}
+            memory: {{ .Values.resources.limits.memory }}
+            {{- end }}
+            {{- if .Values.resources.limits.ephemeralStorage }}
+            ephemeral-storage: {{ .Values.resources.limits.ephemeralStorage }}
+            {{- end }}
+          requests:
+            cpu: {{ .Values.resources.requests.cpu }}
+            memory: {{ .Values.resources.requests.memory }}
+            ephemeral-storage: {{ .Values.resources.requests.ephemeralStorage }}
+        volumeMounts:
+        - mountPath: /app/storage/logs/json
+          name: logs-app
+          subPathExpr: $(NAMESPACE_NAME)_$(POD_NAME)
+        - mountPath: /var/log/nginx
+          name: logs-nginx
+          subPathExpr: $(NAMESPACE_NAME)_$(POD_NAME)
+        - mountPath: /var/log/php
+          name: logs-php
+          subPathExpr: $(NAMESPACE_NAME)_$(POD_NAME)
+        {{- if .Values.exporter.enabled }}
+        - mountPath: {{ .Values.exporter.socketPath }}
+          name: sock
+        {{- end }}
+        {{- if and .Values.init_container.enabled .Values.init_container.volume.enabled }}
+        - mountPath: {{ .Values.init_container.volume.path }}
+          name: shared
+        {{- end }}
+        {{- if .Values.nodeLocalDns }}
+        lifecycle: {{ include "k8s-php-app-canary.lifecycle" . | nindent 10 }}
+        {{- end }}
+      dnsConfig: {{ include "k8s-php-app-canary.dnsConfig" . | nindent 8 }}
+      imagePullSecrets:
+      - name: docker-auth
+      restartPolicy: Always
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      volumes:
+      - hostPath:
+          path: {{ .Values.global.logs.app }}
+          type: ""
+        name: logs-app
+      - hostPath:
+          path: {{ .Values.global.logs.nginx }}
+          type: ""
+        name: logs-nginx
+      - hostPath:
+          path: {{ .Values.global.logs.php }}
+          type: ""
+        name: logs-php
+      {{- if .Values.exporter.enabled }}
+      - name: sock
+        emptyDir: {}
+      {{- end }}
+      {{- if and .Values.init_container.enabled .Values.init_container.volume.enabled }}
+      - name: shared
+        emptyDir: {}
+      {{- end }}
+{{- end }}

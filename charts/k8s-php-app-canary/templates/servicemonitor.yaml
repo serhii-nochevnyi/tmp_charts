@@ -1,0 +1,29 @@
+{{- if and .Values.enabled .Values.metric.enabled -}}
+kind: ServiceMonitor
+apiVersion: monitoring.coreos.com/v1
+metadata: {{ include "k8s-php-app-canary.metadata" . | nindent 2 }}
+spec:
+  endpoints:
+  - interval: 15s
+    path: {{ .Values.metric.path }}
+    port: http
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      targetLabel: k8s_export
+      replacement: "1"
+    - action: labeldrop
+      regex: '(instance|pod)'
+  {{- if .Values.exporter.enabled }}
+  - interval: 15s
+    path: {{ .Values.exporter.path }}
+    port: metrics
+  {{- end }}
+  {{- if .Values.roadrunner.metrics.enabled }}
+  - interval: 15s
+    path: {{ .Values.roadrunner.metrics.path }}
+    port: metrics-rr
+  {{- end }}
+  jobLabel: app
+  selector:
+    matchLabels: {{ include "k8s-php-app-canary.labels" . | nindent 6 }}
+{{- end -}}

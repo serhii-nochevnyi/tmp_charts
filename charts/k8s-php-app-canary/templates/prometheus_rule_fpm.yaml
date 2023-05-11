@@ -1,0 +1,149 @@
+{{- if and .Values.enabled .Values.exporter.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "k8s-php-app-canary.app_name" . }}-fpm
+  labels:
+    prometheus: k8s
+    {{- include "k8s-php-app-canary.labels" . | nindent 4 }}
+    {{- include "k8s-php-app-canary.extra_labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: {{ include "k8s-php-app-canary.app_name" . }}-fpm-rules
+      rules:
+        - expr: |
+            max by (namespace,service) (
+              max_over_time (
+                phpfpm_active_processes{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_active_processes_max
+        - expr: |
+            avg by (namespace,service) (
+              avg_over_time (
+                phpfpm_active_processes{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_active_processes_avg
+        - expr: |
+            sum by (namespace,service) (
+              max_over_time (
+                phpfpm_active_processes{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_active_processes_sum
+        - expr: |
+            max by (namespace,service) (
+              max_over_time (
+                phpfpm_listen_queue{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_listen_queue_max
+        - expr: |
+            avg by (namespace,service) (
+              avg_over_time (
+                phpfpm_listen_queue{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_listen_queue_avg
+        - expr: |
+            sum by (namespace,service) (
+              max_over_time (
+                phpfpm_listen_queue{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_listen_queue_sum
+        - expr: |
+            max by (namespace,service) (
+              max_over_time (
+                phpfpm_process_last_request_memory{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_last_request_memory_max
+        - expr: |
+            avg by (namespace,service) (
+              avg_over_time (
+                phpfpm_process_last_request_memory{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_last_request_memory_avg
+        - expr: |
+            sum by (namespace,service) (
+              max_over_time (
+                phpfpm_max_children_reached{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_max_children_reached_sum
+        - expr: |
+            sum by (namespace,service) (
+              max_over_time (
+                phpfpm_slow_requests{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_slow_requests_sum
+        - expr: |
+            sum by (namespace,service,state) (
+              (
+                phpfpm_process_state{service="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}"}
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_state_sum
+        - expr: |
+            max by (namespace,service,deployment_variant) (
+              max_over_time (
+                phpfpm_process_last_request_cpu{job="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}", deployment_variant="{{ $.Values.global.deployment_variant }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_last_request_cpu_max
+        - expr: |
+            max by (namespace,service,deployment_variant) (
+              max_over_time (
+                phpfpm_process_request_duration{job="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}", deployment_variant="{{ $.Values.global.deployment_variant }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_request_duration_max
+        - expr: |
+            max by (namespace,service,deployment_variant) (
+              max_over_time (
+                phpfpm_process_requests{job="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}", deployment_variant="{{ $.Values.global.deployment_variant }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_process_requests_max
+        - expr: |
+            max by (namespace,service,deployment_variant) (
+              max_over_time (
+                phpfpm_accepted_connections{job="{{ $.Values.global.app_name }}", namespace="{{ $.Values.global.namespace }}", deployment_variant="{{ $.Values.global.deployment_variant }}"}[1m]
+              )
+            )
+          labels:
+            k8s_export: '1'
+          record: phpfpm_accepted_connections_max
+{{- end -}}

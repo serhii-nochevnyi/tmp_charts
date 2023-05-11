@@ -1,0 +1,64 @@
+{{- if .Values.enabled }}
+apiVersion: autoscaling/v2beta2
+kind: HorizontalPodAutoscaler
+metadata: {{ include "k8s-php-app-worker.metadata" . | nindent 2 }}
+spec:
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleUp.stabilizationWindowSeconds }}
+      selectPolicy: {{ .Values.autoscaling.scaleUp.selectPolicy }}
+      policies:
+        {{- with .Values.autoscaling.scaleUp.policies -}}
+        {{ toYaml . | nindent 6 }}
+        {{- end }}
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.autoscaling.scaleDown.stabilizationWindowSeconds }}
+      selectPolicy: {{ .Values.autoscaling.scaleDown.selectPolicy }}
+      policies:
+        {{- with .Values.autoscaling.scaleDown.policies -}}
+        {{ toYaml . | nindent 6 }}
+        {{- end }}
+{{- if .Values.autoscaling.enabled }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+{{- else }}
+  minReplicas: {{ .Values.replicas }}
+  maxReplicas: {{ .Values.replicas }}
+{{- end }}
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "k8s-php-app-worker.fullname" . }}
+  {{- if .Values.autoscaling.enabled }}
+  metrics:
+    {{- if .Values.autoscaling.expr }}
+      {{- $type := .type | default "Object" }}
+      {{- if eq $type "Object" }}
+  - type: {{ $type }}
+    object:
+      metric:
+        name: {{ include "k8s-php-app-worker.promrule_record" . }}
+      describedObject:
+        apiVersion: v1
+        kind: {{ .Values.autoscaling.kind | default "Service" }}
+        name: {{ .Values.global.app_name }}
+      target:
+        type: Value
+        value: {{ .Values.autoscaling.value | default "10000"}}
+      {{- end -}}
+    {{- end }}
+    {{- if .Values.autoscaling.cpuPercent }}
+  - type: Object
+    object:
+      metric:
+        name: {{ include "k8s-php-app-worker.promrule_record" . }}_app_cpu
+      describedObject:
+        apiVersion: v1
+        kind: {{ .Values.autoscaling.kind | default "Service" }}
+        name: {{ include "k8s-php-app-worker.app_name" . }}
+      target:
+        type: Value
+        value: {{ .Values.autoscaling.cpuPercent | int }}
+    {{- end }}
+  {{- end }}
+{{- end -}}

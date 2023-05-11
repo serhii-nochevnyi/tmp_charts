@@ -1,0 +1,46 @@
+{{- if .Values.enabled -}}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata: {{ include "k8s-php-app-canary.metadata" . | nindent 2 }}
+spec:
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  replicas: {{ .Values.replicas }}
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "k8s-php-app-canary.app_name" . }}-rollout-ref
+  selector:
+    matchLabels: {{ include "k8s-php-app-canary.labels" . | nindent 6 }}
+  strategy:
+    canary:
+      {{- if .Values.global.canary.enabled }}
+      canaryMetadata:
+        labels:
+          version: canary
+      stableMetadata:
+        labels:
+          version: stable
+      trafficRouting:
+        istio:
+          virtualService:
+            name: {{ include "k8s-php-app-canary.app_name" . }}
+            routes:
+            - primary
+          destinationRule:
+            name: {{ include "k8s-php-app-canary.app_name" . }}
+            canarySubsetName: canary
+            stableSubsetName: stable
+      steps:
+      - setWeight: {{ .Values.global.canary.weight }}
+      - pause: {}
+      {{- else }}
+        {{- if gt (.Values.replicas | int) 1 }}
+      maxSurge: {{ .Values.rollingUpdate.maxSurge }}
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
+        {{- else }}
+      maxSurge: 1
+      maxUnavailable: 0
+        {{- end }}
+      {{- end }}
+{{- end }}

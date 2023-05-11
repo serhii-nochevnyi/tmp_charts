@@ -1,0 +1,12 @@
+{{- if and .Values.enabled .Values.autoscaling.enabled .Values.autoscaling.expr }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata: {{ include "k8s-php-app-worker.metadata_promrule" . | nindent 2 }}
+spec:
+  groups:
+    - name: {{ include "k8s-php-app-worker.fullname" . }}-rules
+      rules:
+        - expr: |
+            {{ tpl .Values.autoscaling.expr . | indent 12 }}
+          record: {{ include "k8s-php-app-worker.promrule_record" . }}
+{{- end -}}

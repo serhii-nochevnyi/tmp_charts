@@ -1,0 +1,27 @@
+{{- if and .Values.enabled .Values.autoscaling.enabled .Values.autoscaling.cpuPercent }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "k8s-php-app-worker.app_name" . }}-app
+  labels:
+    prometheus: k8s
+    {{- include "k8s-php-app-worker.labels" . | nindent 4 }}
+    {{- include "k8s-php-app-worker.extra_labels" . | nindent 4 }}
+spec:
+  groups:
+    - name: {{ include "k8s-php-app-worker.fullname" . }}-app-rules
+      rules:
+        - expr: |
+            sum by (namespace, service) (
+              label_replace(
+                  k8s:app_cpu_usage:max{
+                    service_role="{{ $.Values.role }}",
+                    namespace="{{ $.Values.global.namespace }}",
+                    service_name="{{ $.Values.global.app_name }}"
+                  },
+               "service", "{{ $.Values.global.app_name }}", "",""
+              )
+            )
+
+          record: {{ include "k8s-php-app-worker.promrule_record" . }}_app_cpu
+{{- end -}}

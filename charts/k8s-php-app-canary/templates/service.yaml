@@ -1,0 +1,25 @@
+{{- if .Values.enabled -}}
+kind: Service
+apiVersion: v1
+metadata: {{ include "k8s-php-app-canary.metadata" . | nindent 2 }}
+spec:
+  ports:
+  - name: http
+    port: {{ .Values.servicePort }}
+    protocol: TCP
+    targetPort: http-main
+  {{- if .Values.exporter.enabled }}
+  - name: metrics
+    port: {{ .Values.exporter.port }}
+    protocol: TCP
+    targetPort: php-fpm-metrics
+  {{- end }}
+  {{- if .Values.roadrunner.metrics.enabled }}
+  - name: metrics-rr
+    port: {{ .Values.roadrunner.metrics.port }}
+    protocol: TCP
+    targetPort: metrics-rr
+  {{- end }}
+  selector: {{ include "k8s-php-app-canary.labels" . | nindent 4 }}
+  type: NodePort
+{{- end }}

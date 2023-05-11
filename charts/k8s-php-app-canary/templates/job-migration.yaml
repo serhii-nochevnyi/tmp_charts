@@ -1,0 +1,56 @@
+{{- if .Values.global.migration.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "k8s-php-app-canary.app_name" . }}-migration
+  labels:
+    app: {{ include "k8s-php-app-canary.app_name" . }}
+    role: console
+    type: migration
+    {{- include "k8s-php-app-canary.extra_labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  activeDeadlineSeconds: {{.Values.global.migration.ttl }}
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: {{ include "k8s-php-app-canary.app_name" . }}
+        role: console
+        type: migration
+        {{- include "k8s-php-app-canary.extra_labels" . | nindent 8 }}
+    spec:
+      containers:
+      - args:
+        - bash
+        - /app/docker/provision/migration.sh
+        env:
+{{ include "k8s-php-app-canary.downward_API" . | indent 8 }}
+{{ include "k8s-php-app-canary.env_vars" . | indent 8 }}
+        - name: SERVICE_ROLE
+          value: console
+        - name: SERVICE_NAME
+          value: {{ include "k8s-php-app-canary.sevice_name" . }}
+        envFrom:
+{{ include "k8s-php-app-canary.env_config_maps" . | indent 8 }}
+{{ include "k8s-php-app-canary.env_secrets" . | indent 8 }}
+        image: {{ include "k8s-php-app-canary.image_name" . }}
+        imagePullPolicy: Always
+        name: app
+        resources:
+          limits:
+            cpu: 256m
+            memory: 512Mi
+          requests:
+            cpu: 256m
+            memory: 512Mi
+      dnsConfig: {{ include "k8s-php-app-canary.dnsConfig" . | nindent 8 }}
+      imagePullSecrets:
+      - name: docker-auth
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 30
+{{- end -}}
