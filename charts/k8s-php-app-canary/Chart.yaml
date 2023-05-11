@@ -2,4 +2,4 @@ apiVersion: v2
 name: k8s-php-app-canary
 description: A Helm chart for K8S to deploy web (canary rollout strategy is possible)
 type: application
-version: 0.0.1
+version: 0.0.2
