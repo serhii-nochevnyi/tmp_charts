@@ -2,7 +2,16 @@ apiVersion: v1
 entries:
   k8s-php-app-canary:
   - apiVersion: v2
-    created: "2023-05-11T13:58:31.66715138Z"
+    created: "2023-05-11T14:09:19.375154353Z"
+    description: A Helm chart for K8S to deploy web (canary rollout strategy is possible)
+    digest: 96c5b7e598dd74b91db78e7dcb8a1e51c30f8cfdfaadaf37aea4c913ff333e04
+    name: k8s-php-app-canary
+    type: application
+    urls:
+    - k8s-php-app-canary-0.0.2.tgz
+    version: 0.0.2
+  - apiVersion: v2
+    created: "2023-05-11T14:09:19.374015843Z"
     description: A Helm chart for K8S to deploy web (canary rollout strategy is possible)
     digest: 12edda87c5d612b17f2ea3f362007aee4ed99b029b98fc04296458cbf43bbf3c
     name: k8s-php-app-canary
@@ -12,7 +21,16 @@ entries:
     version: 0.0.1
   k8s-php-app-cronjob:
   - apiVersion: v2
-    created: "2023-05-11T13:58:31.669220817Z"
+    created: "2023-05-11T14:09:19.376236662Z"
+    description: A Helm chart for K8S to deploy the php cronjob
+    digest: 0bf13fda0482dca7123bef5b06678924ede8dbe2bb3c79d051f82ecd5d4d47c8
+    name: k8s-php-app-cronjob
+    type: application
+    urls:
+    - k8s-php-app-cronjob-0.0.2.tgz
+    version: 0.0.2
+  - apiVersion: v2
+    created: "2023-05-11T14:09:19.375708258Z"
     description: A Helm chart for K8S to deploy the php cronjob
     digest: facba2595fe83d349ea5d2d504aa4b747f3ce36e85efd8a60a756d784eb35ad4
     name: k8s-php-app-cronjob
@@ -22,7 +40,16 @@ entries:
     version: 0.0.1
   k8s-php-app-worker:
   - apiVersion: v2
-    created: "2023-05-11T13:58:31.671813563Z"
+    created: "2023-05-11T14:09:19.377890377Z"
+    description: A Helm chart for K8S to deploy the php worker application
+    digest: 58b1a5c3f814be4b3ba0d74468cba141d0d606cf3d8893aad7e3c9db5884eeed
+    name: k8s-php-app-worker
+    type: application
+    urls:
+    - k8s-php-app-worker-0.0.2.tgz
+    version: 0.0.2
+  - apiVersion: v2
+    created: "2023-05-11T14:09:19.37708057Z"
     description: A Helm chart for K8S to deploy the php worker application
     digest: 35bee50bc030724ed4e45d43f558ad26917e91a6a9c608f1d826134328bed57a
     name: k8s-php-app-worker
@@ -30,4 +57,4 @@ entries:
     urls:
     - k8s-php-app-worker-0.0.1.tgz
     version: 0.0.1
-generated: "2023-05-11T13:58:31.66600636Z"
+generated: "2023-05-11T14:09:19.364399758Z"
